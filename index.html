@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Avaliador TET v3 — QSCon 2027</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --panel2: #0b1220;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --border: #334155;
+      --accent: #38bdf8;
+      --accent2: #0369a1;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    header { background: var(--panel2); border-bottom: 1px solid var(--border); padding: 12px 16px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; }
+    h1 { margin: 0; font-size: 1.05rem; }
+    .sub { font-size: 0.78rem; color: var(--muted); }
+    .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    button, .file-btn { background: var(--panel); color: var(--text); border: 1px solid var(--border); padding: 7px 11px; border-radius: 6px; cursor: pointer; font-size: 0.84rem; }
+    button.primary { background: var(--accent2); border-color: var(--accent); font-weight: 600; }
+    button.danger { border-color: #ef4444; color: #fca5a5; }
+    input[type="file"] { display: none; }
+    .status { background: #132036; border-bottom: 1px solid var(--border); padding: 6px 16px; font-size: 0.8rem; color: #bae6fd; display: flex; justify-content: space-between; }
+    .grid { display: grid; grid-template-columns: 290px 1fr; min-height: calc(100vh - 95px); }
+    aside { background: var(--panel2); border-right: 1px solid var(--border); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .item { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+    .item.active { border-color: var(--accent); background: #24344d; }
+    main { padding: 16px; max-width: 1080px; width: 100%; }
+    .kpis { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .kpi { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+    .kpi .v { font-size: 1.25rem; font-weight: 700; margin-top: 2px; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+    .card h2 { margin: 0 0 10px 0; font-size: 0.96rem; border-bottom: 1px solid var(--border); padding-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+    .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+    label.f { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--muted); }
+    input, select { background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 8px; font-size: 0.85rem; }
+    label.chk { display: flex; align-items: center; gap: 8px; font-size: 0.84rem; margin: 6px 0; cursor: pointer; }
+    .box { padding: 10px 12px; border-radius: 6px; font-size: 0.83rem; margin-top: 10px; }
+    .ok { background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.45); color: #bbf7d0; }
+    .err { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.45); color: #fecaca; }
+    .vinc { background: var(--panel2); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-bottom: 8px; }
+    pre.log { background: var(--panel2); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-size: 0.78rem; white-space: pre-wrap; margin: 0; }
+    @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2, 1fr); } }
+    @media print { header, aside, .status, .no-print { display: none !important; } body { background: #fff; color: #000; } .card, .kpi, pre.log, .vinc { background: #fff; color: #000; border: 1px solid #888; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Avaliador TET v3 — QSCon 2027</h1>
+      <div class="sub">Corte inscricao: 11/11/2026 · Incorporacao: 24/05/2027 · Tecnico 1.200h · Blocos 180d (4,5 pts, max 90) + Sup. (10 pts)</div>
+    </div>
+    <div class="bar no-print">
+      <button type="button" id="bAdd" class="primary">+ Novo candidato</button>
+      <button type="button" id="bEx">Carregar 2 exemplos</button>
+      <button type="button" id="bSaveJson">Salvar JSON</button>
+      <label class="file-btn">Carregar JSON<input type="file" id="fJson" accept=".json" /></label>
+      <button type="button" id="bCsv">Exportar CSV</button>
+      <button type="button" id="bPrint">Imprimir</button>
+    </div>
+  </header>
+
+  <div class="status">
+    <span id="stMsg">Inicializando...</span>
+    <span id="stCnt">0 candidatos</span>
+  </div>
+
+  <div class="grid">
+    <aside class="no-print">
+      <div id="list"></div>
+      <div style="display:flex; gap:8px;">
+        <button type="button" id="bDel" class="danger" style="flex:1;">Excluir atual</button>
+        <button type="button" id="bClear" class="danger">Limpar tudo</button>
+      </div>
+    </aside>
+    <main id="main"></main>
+  </div>
+
+  <script>
+  (function () {
+    const KEY = "qscon2027_tet_v3";
+    const CUT = Date.UTC(2026, 10, 11);
+    const INC = Date.UTC(2027, 4, 24);
+    const DAY = 86400000;
+
+    function pDate(s) {
+      if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+      const p = s.split("-").map(Number);
+      const t = Date.UTC(p[0], p[1] - 1, p[2]);
+      return Number.isNaN(t) ? null : t;
+    }
+    function fDate(ms) {
+      if (ms == null) return "-";
+      const d = new Date(ms);
+      return String(d.getUTCDate()).padStart(2, "0") + "/" + String(d.getUTCMonth() + 1).padStart(2, "0") + "/" + d.getUTCFullYear();
+    }
+    function days(a, b) {
+      if (a == null || b == null || b < a) return 0;
+      return Math.floor((b - a) / DAY) + 1;
+    }
+    function ageAt(birthMs, refMs) {
+      if (birthMs == null || refMs == null) return null;
+      const b = new Date(birthMs), r = new Date(refMs);
+      let y = r.getUTCFullYear() - b.getUTCFullYear();
+      const bm = b.getUTCMonth(), bd = b.getUTCDate(), rm = r.getUTCMonth(), rd = r.getUTCDate();
+      if (rm < bm || (rm === bm && rd < bd)) y--;
+      return y;
+    }
+    function esc(s) {
+      return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function newCand(n) {
+      return {
+        id: "id_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+        inscricao: "",
+        nome: "Candidato " + n,
+        nascimento: "1998-05-10",
+        cota: "Ampla Concorrencia",
+        docOk: true,
+        emOk: true,
+        tipoReq: "tecnico",
+        cursoReq: "Tecnico em Eletronica",
+        chTec: 1200,
+        vedada: false,
+        dtReq: "2020-12-01",
+        militar: false,
+        mesesMil: 0,
+        histMilOk: true,
+        supEletr: false,
+        dtSup: "",
+        supMecOk: true,
+        vinculos: []
+      };
+    }
+
+    function newVinc(n) {
+      return {
+        id: "v_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+        nome: "Vinculo " + n,
+        mod: "privada",
+        ini: "2022-01-01",
+        fim: "2023-12-31",
+        aberto: false,
+        pertinente: true,
+        docsOk: true
+      };
+    }
+
+    function makeExamples() {
+      const a = Object.assign(newCand(1), {
+        id: "ex_a_" + Date.now(),
+        inscricao: "EX-01",
+        nome: "Exemplo A - 1.400h + Sup. Eletronica + 2 Vinculos",
+        nascimento: "1995-08-20",
+        chTec: 1400,
+        dtReq: "2018-07-01",
+        supEletr: true,
+        dtSup: "2023-10-15",
+        vinculos: [
+          { id: "v_a1", nome: "Empresa 1", mod: "privada", ini: "2019-01-01", fim: "2021-06-28", aberto: false, pertinente: true, docsOk: true },
+          { id: "v_a2", nome: "Empresa 2 (sobrepoe 2021)", mod: "privada", ini: "2021-01-01", fim: "2022-12-27", aberto: false, pertinente: true, docsOk: true }
+        ]
+      });
+      const b = Object.assign(newCand(2), {
+        id: "ex_b_" + Date.now(),
+        inscricao: "EX-02",
+        nome: "Exemplo B - Indeferido VD (CH 900h < 1.200h)",
+        nascimento: "2000-02-14",
+        chTec: 900,
+        dtReq: "2022-06-01",
+        vinculos: []
+      });
+      return [a, b];
+    }
+
+    let storeOk = true;
+    function loadStore() {
+      try {
+        const raw = window.localStorage.getItem(KEY);
+        if (raw) {
+          const obj = JSON.parse(raw);
+          if (obj && Array.isArray(obj.candidates) && obj.candidates.length) return obj;
+        }
+      } catch (e) { storeOk = false; }
+      const c1 = newCand(1);
+      return { candidates: [c1], activeId: c1.id };
+    }
+
+    let state = loadStore();
+
+    function setMsg(txt) {
+      document.getElementById("stMsg").textContent = txt + (storeOk ? "" : " [modo memoria]");
+      document.getElementById("stCnt").textContent = state.candidates.length + " candidato(s)";
+    }
+
+    function save(msg) {
+      if (storeOk) {
+        try { window.localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { storeOk = false; }
+      }
+      if (msg) setMsg(msg);
+      else document.getElementById("stCnt").textContent = state.candidates.length + " candidato(s)";
+    }
+
+    function cur() {
+      if (!state.candidates.length) {
+        const c = newCand(1);
+        state.candidates.push(c);
+        state.activeId = c.id;
+      }
+      return state.candidates.find(function (x) { return x.id === state.activeId; }) || state.candidates[0];
+    }
+
+    function calc(c) {
+      const motivos = [];
+      const log = [];
+      const nMs = pDate(c.nascimento);
+      const idade = ageAt(nMs, INC);
+      if (nMs == null) motivos.push("Data de nascimento ausente (Item 3.1.1, 'c').");
+      else if (idade < 18 || idade >= 41) motivos.push("Idade em 24/05/2027: " + idade + " anos (fora de 18 a <41 — Item 3.1.1, 'c').");
+      if (!c.docOk) motivos.push("Identidade/CPF irregular (Anexo F, 'c'/'d').");
+      if (!c.emOk) motivos.push("Ensino Medio irregular/ausente (Anexo F, 'f').");
+      if (c.vedada) motivos.push("Instituicao vedada ESCON/FAJON (Item 5.4.10).");
+      if (c.militar) {
+        if (Number(c.mesesMil || 0) >= 85) motivos.push("Tempo de servico militar >= 85 meses (Item 3.1.1, 'e').");
+        if (!c.histMilOk) motivos.push("Restricao em assentamentos/historico militar (Item 3.1.1).");
+      }
+      const reqMs = pDate(c.dtReq);
+      const ch = Number(c.chTec || 0);
+      if (c.tipoReq === "tecnico" && ch < 1200) {
+        motivos.push("Curso tecnico com " + ch + "h (< 1.200h — Anexo E, item 5).");
+      }
+
+      const ok = motivos.length === 0;
+      log.push("VD: " + (ok ? "DEFERIDO" : "INDEFERIDO") + " | Idade 24/05/2027: " + (idade == null ? "-" : idade) + " | Req: " + fDate(reqMs) + " (" + ch + "h)");
+
+      let ptsSup = 0;
+      if (ok && c.supEletr && c.supMecOk && c.tipoReq !== "superior_cnct") {
+        const sMs = pDate(c.dtSup);
+        if (sMs && sMs <= CUT && (reqMs == null || sMs >= reqMs)) {
+          ptsSup = 10.0;
+          log.push("Sup. Eletronica: +10,0 pts (conclusao " + fDate(sMs) + ").");
+        } else {
+          log.push("Sup. Eletronica: 0,0 pts (fora do prazo/requisito).");
+        }
+      } else {
+        log.push("Sup. Eletronica: 0,0 pts.");
+      }
+
+      const segs = [];
+      for (const v of (c.vinculos || [])) {
+        if (!v.pertinente || !v.docsOk) {
+          log.push("Vinculo '" + (v.nome || "?") + "': 0d (sem pertinencia ou docs incompletos).");
+          continue;
+        }
+        const iMs = pDate(v.ini);
+        const fMs = v.aberto ? CUT : pDate(v.fim);
+        if (iMs == null || fMs == null || fMs < iMs) {
+          log.push("Vinculo '" + (v.nome || "?") + "': 0d (datas invalidas).");
+          continue;
+        }
+        let s = iMs, e = fMs;
+        if (reqMs != null && s < reqMs) s = reqMs;
+        if (e > CUT) e = CUT;
+        const dCnt = days(s, e);
+        if (dCnt < 180) {
+          log.push("Vinculo '" + (v.nome || "?") + "': " + dCnt + "d (< 180d ininterruptos).");
+          continue;
+        }
+        segs.push({ s: s, e: e, n: v.nome || "Vinculo" });
+      }
+
+      segs.sort(function (a, b) { return a.s - b.s || a.e - b.e; });
+      const merged = [];
+      for (const g of segs) {
+        if (!merged.length) merged.push({ s: g.s, e: g.e, ns: [g.n] });
+        else {
+          const last = merged[merged.length - 1];
+          if (g.s <= last.e + DAY) {
+            if (g.e > last.e) last.e = g.e;
+            last.ns.push(g.n);
+          } else merged.push({ s: g.s, e: g.e, ns: [g.n] });
+        }
+      }
+
+      let blocos = 0;
+      for (const m of merged) {
+        const du = days(m.s, m.e);
+        const bl = Math.floor(du / 180);
+        blocos += bl;
+        log.push("Periodo [" + m.ns.join(" + ") + "]: " + du + "d unicos (" + fDate(m.s) + " a " + fDate(m.e) + ") => " + bl + " bloco(s).");
+      }
+      blocos = Math.min(blocos, 20);
+      const ptsExp = ok ? Number((blocos * 4.5).toFixed(1)) : 0;
+      const total = ok ? Number((ptsSup + ptsExp).toFixed(1)) : 0;
+      log.push("Exp: " + blocos + " bloco(s) x 4,5 = " + ptsExp.toFixed(1) + " pts | Total AC: " + total.toFixed(1) + " pts.");
+
+      return { idade: idade, ok: ok, motivos: motivos, ptsSup: ptsSup, ptsExp: ptsExp, blocos: blocos, total: total, logText: log.join("\n") };
+    }
+
+    function render() {
+      const c = cur();
+      const r = calc(c);
+      state.activeId = c.id;
+
+      document.getElementById("list").innerHTML = state.candidates.map(function (x) {
+        const rx = calc(x);
+        return '<div class="item ' + (x.id === c.id ? "active" : "") + '" data-sel="' + esc(x.id) + '">' +
+          '<div><div style="font-weight:600;font-size:0.85rem;">' + esc(x.nome) + '</div><div class="sub">Insc: ' + esc(x.inscricao || "-") + '</div></div>' +
+          '<span>' + (rx.ok ? rx.total.toFixed(1) + " pts" : "INDEF.") + '</span></div>';
+      }).join("");
+
+      document.querySelectorAll("[data-sel]").forEach(function (el) {
+        el.onclick = function () { state.activeId = el.getAttribute("data-sel"); save("Selecionado: " + cur().nome); render(); };
+      });
+
+      const vincHtml = (c.vinculos || []).map(function (v, i) {
+        return '<div class="vinc">' +
+          '<div style="display:flex;justify-content:space-between;margin-bottom:8px;"><strong>Vinculo #' + (i + 1) + '</strong><button type="button" class="danger no-print" data-vdel="' + esc(v.id) + '">Remover</button></div>' +
+          '<div class="cols">' +
+            '<label class="f">Empresa/Descricao<input type="text" data-vid="' + esc(v.id) + '" data-vf="nome" value="' + esc(v.nome) + '"></label>' +
+            '<label class="f">Modalidade<select data-vid="' + esc(v.id) + '" data-vf="mod">' +
+              '<option value="privada"' + (v.mod === "privada" ? " selected" : "") + '>Privada (CTPS+CNIS)</option>' +
+              '<option value="autonomo"' + (v.mod === "autonomo" ? " selected" : "") + '>Autonomo</option>' +
+              '<option value="militar"' + (v.mod === "militar" ? " selected" : "") + '>Militar</option>' +
+              '<option value="civil"' + (v.mod === "civil" ? " selected" : "") + '>Civil</option>' +
+              '<option value="cat"' + (v.mod === "cat" ? " selected" : "") + '>CAT</option>' +
+            '</select></label>' +
+            '<label class="f">Inicio<input type="date" data-vid="' + esc(v.id) + '" data-vf="ini" value="' + esc(v.ini) + '"></label>' +
+            '<label class="f">Fim<input type="date" data-vid="' + esc(v.id) + '" data-vf="fim" value="' + esc(v.fim) + '"' + (v.aberto ? " disabled" : "") + '></label>' +
+          '</div>' +
+          '<label class="chk"><input type="checkbox" data-vid="' + esc(v.id) + '" data-vf="aberto"' + (v.aberto ? " checked" : "") + '>Ativo (corta em 11/11/2026)</label>' +
+          '<label class="chk"><input type="checkbox" data-vid="' + esc(v.id) + '" data-vf="pertinente"' + (v.pertinente ? " checked" : "") + '>Pertinente a TET</label>' +
+          '<label class="chk"><input type="checkbox" data-vid="' + esc(v.id) + '" data-vf="docsOk"' + (v.docsOk ? " checked" : "") + '>Documentacao completa</label>' +
+        '</div>';
+      }).join("");
+
+      document.getElementById("main").innerHTML =
+        '<div class="kpis">' +
+          '<div class="kpi"><div class="sub">Idade 24/05/2027</div><div class="v">' + (r.idade == null ? "-" : r.idade + " anos") + '</div></div>' +
+          '<div class="kpi"><div class="sub">Sup. Eletronica</div><div class="v">' + r.ptsSup.toFixed(1) + ' / 10,0</div></div>' +
+          '<div class="kpi"><div class="sub">Exp. (' + r.blocos + 'x180d)</div><div class="v">' + r.ptsExp.toFixed(1) + ' / 90,0</div></div>' +
+          '<div class="kpi"><div class="sub">Nota Final AC</div><div class="v">' + r.total.toFixed(1) + ' / 100,0</div></div>' +
+        '</div>' +
+        '<div class="card"><h2>1. Candidato</h2><div class="cols">' +
+          '<label class="f">Inscricao<input type="text" data-cf="inscricao" value="' + esc(c.inscricao) + '"></label>' +
+          '<label class="f">Nome<input type="text" data-cf="nome" value="' + esc(c.nome) + '"></label>' +
+          '<label class="f">Nascimento<input type="date" data-cf="nascimento" value="' + esc(c.nascimento) + '"></label>' +
+          '<label class="f">Cota<select data-cf="cota">' +
+            '<option value="Ampla Concorrencia"' + (c.cota === "Ampla Concorrencia" ? " selected" : "") + '>Ampla Concorrencia</option>' +
+            '<option value="Pessoa Negra"' + (c.cota === "Pessoa Negra" ? " selected" : "") + '>Pessoa Negra</option>' +
+            '<option value="Pessoa Indigena"' + (c.cota === "Pessoa Indigena" ? " selected" : "") + '>Pessoa Indigena</option>' +
+            '<option value="Pessoa Quilombola"' + (c.cota === "Pessoa Quilombola" ? " selected" : "") + '>Pessoa Quilombola</option>' +
+          '</select></label>' +
+        '</div></div>' +
+        '<div class="card"><h2>2. Validacao Documental (VD)</h2><div class="cols">' +
+          '<label class="f">Requisito<select data-cf="tipoReq"><option value="tecnico"' + (c.tipoReq === "tecnico" ? " selected" : "") + '>Tecnico TET (>=1200h)</option><option value="superior_cnct"' + (c.tipoReq === "superior_cnct" ? " selected" : "") + '>Superior CNCT/MEC</option></select></label>' +
+          '<label class="f">Curso<input type="text" data-cf="cursoReq" value="' + esc(c.cursoReq) + '"></label>' +
+          '<label class="f">Carga Horaria (h)<input type="number" data-cf="chTec" value="' + Number(c.chTec || 0) + '"></label>' +
+          '<label class="f">Conclusao Requisito<input type="date" data-cf="dtReq" value="' + esc(c.dtReq) + '"></label>' +
+        '</div>' +
+        '<label class="chk"><input type="checkbox" data-cf="docOk"' + (c.docOk ? " checked" : "") + '>Identidade e CPF ok</label>' +
+        '<label class="chk"><input type="checkbox" data-cf="emOk"' + (c.emOk ? " checked" : "") + '>Ensino Medio ok</label>' +
+        '<label class="chk"><input type="checkbox" data-cf="vedada"' + (c.vedada ? " checked" : "") + '>Escola vedada (ESCON/FAJON)</label>' +
+        '<label class="chk"><input type="checkbox" data-cf="militar"' + (c.militar ? " checked" : "") + '>Militar ativa/reserva</label>' +
+        (c.militar ? '<div class="cols" style="padding-left:20px;"><label class="f">Meses servico militar<input type="number" data-cf="mesesMil" value="' + Number(c.mesesMil || 0) + '"></label><label class="chk"><input type="checkbox" data-cf="histMilOk"' + (c.histMilOk ? " checked" : "") + '>Historico/comportamento ok</label></div>' : '') +
+        (r.ok ? '<div class="box ok"><strong>VD: DEFERIDO</strong></div>' : '<div class="box err"><strong>VD: INDEFERIDO</strong><ul>' + r.motivos.map(function (m) { return "<li>" + esc(m) + "</li>"; }).join("") + '</ul></div>') +
+        '</div>' +
+        '<div class="card"><h2>3. Curso Superior em Eletronica (10 pts)</h2>' +
+          '<label class="chk"><input type="checkbox" data-cf="supEletr"' + (c.supEletr ? " checked" : "") + '>Possui diploma superior em Eletronica</label>' +
+          (c.supEletr ? '<div class="cols" style="padding-left:20px;"><label class="f">Conclusao Graduacao<input type="date" data-cf="dtSup" value="' + esc(c.dtSup) + '"></label><label class="chk"><input type="checkbox" data-cf="supMecOk"' + (c.supMecOk ? " checked" : "") + '>Registrado/MEC ok</label></div>' : '') +
+        '</div>' +
+        '<div class="card"><h2><span>4. Experiencia (180d = 4,5 pts, max 90)</span><button type="button" id="bAddV" class="primary no-print">+ Vinculo</button></h2>' + (vincHtml || '<div class="sub">Sem vinculos.</div>') + '</div>' +
+        '<div class="card"><h2>5. Memoria de Calculo</h2><pre class="log">' + esc(r.logText) + '</pre></div>';
+
+      document.querySelectorAll("[data-cf]").forEach(function (el) {
+        const f = el.getAttribute("data-cf");
+        el.onchange = el.oninput = function () {
+          c[f] = el.type === "checkbox" ? el.checked : (el.type === "number" ? Number(el.value) : el.value);
+          save("Salvo: " + c.nome);
+          if (el.type === "checkbox" || el.tagName === "SELECT") render();
+          else {
+            const nr = calc(c);
+            const vs = document.querySelectorAll(".kpi .v");
+            if (vs.length === 4) {
+              vs[0].textContent = nr.idade == null ? "-" : nr.idade + " anos";
+              vs[1].textContent = nr.ptsSup.toFixed(1) + " / 10,0";
+              vs[2].textContent = nr.ptsExp.toFixed(1) + " / 90,0";
+              vs[3].textContent = nr.total.toFixed(1) + " / 100,0";
+            }
+            const lg = document.querySelector("pre.log");
+            if (lg) lg.textContent = nr.logText;
+            document.getElementById("list").innerHTML = "";
+            render();
+          }
+        };
+      });
+
+      document.querySelectorAll("[data-vid]").forEach(function (el) {
+        const vid = el.getAttribute("data-vid"), vf = el.getAttribute("data-vf");
+        const v = (c.vinculos || []).find(function (x) { return x.id === vid; });
+        if (!v) return;
+        el.onchange = el.oninput = function () {
+          v[vf] = el.type === "checkbox" ? el.checked : el.value;
+          save("Vinculo atualizado.");
+          if (el.type === "checkbox" || el.tagName === "SELECT") render();
+        };
+      });
+
+      document.querySelectorAll("[data-vdel]").forEach(function (el) {
+        el.onclick = function () {
+          c.vinculos = (c.vinculos || []).filter(function (x) { return x.id !== el.getAttribute("data-vdel"); });
+          save("Vinculo removido.");
+          render();
+        };
+      });
+
+      const bAddV = document.getElementById("bAddV");
+      if (bAddV) bAddV.onclick = function () {
+        c.vinculos = c.vinculos || [];
+        c.vinculos.push(newVinc(c.vinculos.length + 1));
+        save("Vinculo adicionado.");
+        render();
+      };
+    }
+
+    document.getElementById("bAdd").onclick = function () {
+      const n = newCand(state.candidates.length + 1);
+      state.candidates.push(n);
+      state.activeId = n.id;
+      save("Adicionado: " + n.nome);
+      render();
+    };
+
+    document.getElementById("bEx").onclick = function () {
+      const ex = makeExamples();
+      state.candidates.push(ex[0], ex[1]);
+      state.activeId = ex[0].id;
+      save("2 exemplos adicionados.");
+      render();
+    };
+
+    document.getElementById("bDel").onclick = function () {
+      if (state.candidates.length <= 1) { setMsg("Mantenha ao menos 1 candidato."); return; }
+      const c = cur();
+      state.candidates = state.candidates.filter(function (x) { return x.id !== c.id; });
+      state.activeId = state.candidates[0].id;
+      save("Removido: " + c.nome);
+      render();
+    };
+
+    document.getElementById("bClear").onclick = function () {
+      const f = newCand(1);
+      state = { candidates: [f], activeId: f.id };
+      save("Lista limpa.");
+      render();
+    };
+
+    document.getElementById("bSaveJson").onclick = function () {
+      const b = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+      const u = URL.createObjectURL(b);
+      const a = document.createElement("a");
+      a.href = u; a.download = "qscon2027_tet.json"; a.click();
+      URL.revokeObjectURL(u);
+      setMsg("JSON exportado.");
+    };
+
+    document.getElementById("fJson").onchange = function (ev) {
+      const f = ev.target.files && ev.target.files[0];
+      if (!f) return;
+      const rd = new FileReader();
+      rd.onload = function () {
+        try {
+          const d = JSON.parse(String(rd.result || ""));
+          if (Array.isArray(d.candidates) && d.candidates.length) {
+            state = { candidates: d.candidates, activeId: d.candidates[0].id };
+            save("Importado: " + f.name);
+            render();
+          } else setMsg("JSON invalido.");
+        } catch (e) { setMsg("Erro JSON: " + e.message); }
+      };
+      rd.readAsText(f);
+      ev.target.value = "";
+    };
+
+    document.getElementById("bCsv").onclick = function () {
+      const rows = [["Inscricao", "Nome", "Nascimento", "Idade_24_05_2027", "VD", "Sup_Eletr", "Blocos_180d", "Pts_Exp", "Nota_Final", "Motivos"]];
+      for (const x of state.candidates) {
+        const rx = calc(x);
+        rows.push([x.inscricao, x.nome, x.nascimento, rx.idade == null ? "" : rx.idade, rx.ok ? "DEFERIDO" : "INDEFERIDO", rx.ptsSup.toFixed(1), rx.blocos, rx.ptsExp.toFixed(1), rx.total.toFixed(1), rx.motivos.join(" | ")]);
+      }
+      const csv = rows.map(function (r) { return r.map(function (v) { return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"'; }).join(";"); }).join("\n");
+      const b = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const u = URL.createObjectURL(b);
+      const a = document.createElement("a");
+      a.href = u; a.download = "qscon2027_tet.csv"; a.click();
+      URL.revokeObjectURL(u);
+      setMsg("CSV exportado.");
+    };
+
+    document.getElementById("bPrint").onclick = function () { window.print(); };
+
+    try {
+      render();
+      setMsg("Pronto (v3).");
+    } catch (e) {
+      setMsg("Erro na inicializacao: " + e.message);
+    }
+  })();
+  </script>
+</body>
+</html>
